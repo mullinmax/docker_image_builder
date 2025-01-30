@@ -7,6 +7,11 @@ on:
 
 jobs:
   build:
+    # Grant the GITHUB_TOKEN permission to push packages:
+    permissions:
+      contents: read
+      packages: write
+
     runs-on: ubuntu-latest
     steps:
       - name: Checkout this repo
@@ -20,7 +25,7 @@ jobs:
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Clone, Build, and Push Repositories
@@ -29,7 +34,14 @@ jobs:
             REPO_NAME=$(basename "$REPO")
             git clone "$REPO"
             cd "$REPO_NAME"
-            docker build -t ghcr.io/${{ github.actor }}/${REPO_NAME}:latest .
-            docker push ghcr.io/${{ github.actor }}/${REPO_NAME}:latest
+
+            # Build image tagged under the 'mullinmax' user (repository_owner).
+            # If your GH username is indeed mullinmax, this will work.
+            # Otherwise, confirm it's spelled exactly as in your GitHub account.
+            docker build -t ghcr.io/${{ github.repository_owner }}/${REPO_NAME}:latest .
+
+            # Push image
+            docker push ghcr.io/${{ github.repository_owner }}/${REPO_NAME}:latest
+
             cd ..
           done
