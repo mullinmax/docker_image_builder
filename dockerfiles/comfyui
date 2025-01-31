@@ -1,5 +1,7 @@
 # Use the official NVIDIA PyTorch image as the base image
-FROM nvcr.io/nvidia/pytorch:23.01-py3
+FROM nvidia/cuda:12.2.2-runtime-ubuntu22.04
+
+RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
