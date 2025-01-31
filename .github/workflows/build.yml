@@ -2,24 +2,53 @@ name: Build and Push Docker Images
 
 on:
   schedule:
-    - cron: "0 2 * * *"  # Runs daily at 2 AM UTC
-  workflow_dispatch:  # Allows manual triggering
+    - cron: "0 2 * * *"
+  workflow_dispatch:
 
 jobs:
   build:
-    # Grant the GITHUB_TOKEN permission to push packages:
     permissions:
       contents: read
       packages: write
 
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout this repo
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Read repository list
-        id: read_repos
-        run: echo "REPOS=$(cat repos.txt | tr '\n' ' ')" >> $GITHUB_ENV
+      - name: Read build configuration
+        id: read_config
+        run: |
+          # Example repositories.json structure:
+          # [
+          #   {
+          #       "url": "https://github.com/owner/repo1.git",
+          #       "builds": [
+          #           {
+          #               "dockerfilePath": ".",
+          #               "tag": "app1",
+          #               "buildArgs": ["ARG1=value1"]
+          #           },
+          #           {
+          #               "dockerfilePath": ".",
+          #               "tag": "app2",
+          #               "buildArgs": ["ARG2=value2"]
+          #           }
+          #       ]
+          #   },
+          #   {
+          #       "url": "https://github.com/owner/repo2.git",
+          #       "builds": [
+          #           {
+          #               "dockerfilePath": "docker",
+          #               "tag": "my-other-app",
+          #               "buildArgs": []
+          #           }
+          #       ]
+          #   }
+          # ]
+          echo "BUILD_CONFIG=$(cat repositories.json | tr '\n' ' ')" >> $GITHUB_ENV
 
       - name: Login to GHCR
         uses: docker/login-action@v2
@@ -28,20 +57,33 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Clone, Build, and Push Repositories
+      - name: Clone, Build, and Push
         run: |
-          for REPO in $REPOS; do
-            REPO_NAME=$(basename "$REPO")
-            git clone "$REPO"
+          echo "$BUILD_CONFIG" | jq -c '.[]' | while read -r repo; do
+            REPO_URL=$(echo "$repo" | jq -r '.url')
+            REPO_NAME=$(basename -s .git "$REPO_URL")
+
+            git clone "$REPO_URL" "$REPO_NAME"
             cd "$REPO_NAME"
 
-            # Build image tagged under the 'mullinmax' user (repository_owner).
-            # If your GH username is indeed mullinmax, this will work.
-            # Otherwise, confirm it's spelled exactly as in your GitHub account.
-            docker build -t ghcr.io/${{ github.repository_owner }}/${REPO_NAME}:latest .
+            echo "$repo" | jq -c '.builds[]' | while read -r build; do
+              DOCKERFILE_PATH=$(echo "$build" | jq -r '.dockerfilePath')
+              TAG_NAME=$(echo "$build" | jq -r '.tag')
+              BUILD_ARGS=$(echo "$build" | jq -r '.buildArgs | join(" --build-arg ")')
 
-            # Push image
-            docker push ghcr.io/${{ github.repository_owner }}/${REPO_NAME}:latest
+              if [ "$BUILD_ARGS" != "" ]; then
+                docker build -f "$DOCKERFILE_PATH/Dockerfile" \
+                  --build-arg $BUILD_ARGS \
+                  -t ghcr.io/${{ github.repository_owner }}/autobuild/${REPO_NAME}:${TAG_NAME} \
+                  "$DOCKERFILE_PATH"
+              else
+                docker build -f "$DOCKERFILE_PATH/Dockerfile" \
+                  -t ghcr.io/${{ github.repository_owner }}/autobuild/${REPO_NAME}:${TAG_NAME} \
+                  "$DOCKERFILE_PATH"
+              fi
+
+              docker push ghcr.io/${{ github.repository_owner }}/autobuild/${REPO_NAME}:${TAG_NAME}
+            done
 
             cd ..
           done

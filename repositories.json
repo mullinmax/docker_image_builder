@@ -1,0 +1,17 @@
+[
+  {
+      "url": "https://github.com/Woolverine94/biniou",
+      "builds": [
+          {
+              "dockerfilePath": ".",
+              "tag": "biniou",
+              "buildArgs": []
+          },
+          {
+              "dockerfilePath": "./CUDA/",
+              "tag": "gpu",
+              "buildArgs": [""]
+          }
+      ]
+  }
+]
