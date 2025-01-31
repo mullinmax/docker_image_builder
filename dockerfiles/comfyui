@@ -1,5 +1,5 @@
 # Use the official NVIDIA PyTorch image as the base image
-FROM nvcr.io/nvidia/pytorch:23.01-py3
+FROM nvcr.io/nvidia/pytorch:25.01-py3
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
